@@ -79,10 +79,16 @@ The setup automatically pulls the `mistral:latest` model for AI workflows.
 ```
 .
 ├── docker-compose.yml    # Main service configuration
-├── .env                  # Environment variables (create from .env.example)
+├── .env.example          # Environment variables template
+├── .gitignore           # Git ignore file for sensitive data
+├── README.md            # Project documentation (English & Thai)
 ├── n8n/
 │   └── demo-data/       # Sample workflows and credentials
+│       ├── README.md    # Demo data documentation
+│       ├── workflows/   # Sample workflow files (.json)
+│       └── credentials/ # Sample credential configurations (.json)
 └── shared/              # Shared data directory
+    └── README.md        # Shared directory documentation
 ```
 
 ## Troubleshooting
@@ -194,10 +200,16 @@ This project is provided as-is for educational and development purposes.
 ```
 .
 ├── docker-compose.yml    # การกำหนดค่าเซอร์วิสหลัก
-├── .env                  # ตัวแปรสภาพแวดล้อม (สร้างจาก .env.example)
+├── .env.example          # เทมเพลตตัวแปรสภาพแวดล้อม
+├── .gitignore           # ไฟล์ Git ignore สำหรับข้อมูลสำคัญ
+├── README.md            # เอกสารโปรเจ็กต์ (ภาษาอังกฤษ & ภาษาไทย)
 ├── n8n/
 │   └── demo-data/       # ตัวอย่างเวิร์กโฟลว์และข้อมูลประจำตัว
+│       ├── README.md    # เอกสารข้อมูลตัวอย่าง
+│       ├── workflows/   # ไฟล์เวิร์กโฟลว์ตัวอย่าง (.json)
+│       └── credentials/ # การกำหนดค่าข้อมูลประจำตัวตัวอย่าง (.json)
 └── shared/              # ไดเรกทอรีข้อมูลที่ใช้ร่วมกัน
+    └── README.md        # เอกสารไดเรกทอรีที่ใช้ร่วมกัน
 ```
 
 ## การแก้ไขปัญหา

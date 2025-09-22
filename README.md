@@ -13,8 +13,8 @@ A Docker Compose setup for running N8N (workflow automation) with AI capabilitie
 
 1. **Clone and setup environment**:
    ```bash
-   git clone <your-repo-url>
-   cd self-hosted-n8n-ai
+   git clone https://github.com/drsanti/self-host-n8n-ai.git
+   cd self-host-n8n-ai
    cp .env.example .env
    ```
 
@@ -128,8 +128,8 @@ This project is provided as-is for educational and development purposes.
 
 1. **Clone และตั้งค่าสภาพแวดล้อม**:
    ```bash
-   git clone <your-repo-url>
-   cd self-hosted-n8n-ai
+   git clone https://github.com/drsanti/self-host-n8n-ai.git
+   cd self-host-n8n-ai
    cp .env.example .env
    ```
 

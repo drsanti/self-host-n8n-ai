@@ -1,143 +1,187 @@
+# =============================================================================
+# VOLUMES - Persistent data storage for containers
+# =============================================================================
+# These volumes ensure data persistence across container restarts and updates
 volumes:
-  n8n_storage:
-  postgres_storage:
-  ollama_storage:
+  n8n_storage: # Stores N8N workflows, credentials, and configuration data
+  postgres_storage: # Stores PostgreSQL database files and data
+  ollama_storage: # Stores downloaded AI models and Ollama configuration
 
+# =============================================================================
+# NETWORKS - Container communication
+# =============================================================================
+# Custom network allows all services to communicate using service names
 networks:
-  demo:
+  demo: # All services will be on this network for internal communication
 
+# =============================================================================
+# YAML ANCHORS - Reusable service configurations
+# =============================================================================
+# These anchors allow us to reuse common configurations across multiple services
+
+# N8N Base Configuration - Used by both n8n and n8n-import services
 x-n8n: &service-n8n
-  image: n8nio/n8n:latest
-  networks: ["demo"]
+  image: n8nio/n8n:latest # Latest N8N workflow automation platform
+  networks: ["demo"] # Connect to our custom network
   environment:
-    - DB_TYPE=postgresdb
-    - DB_POSTGRESDB_HOST=postgres
-    - DB_POSTGRESDB_USER=${POSTGRES_USER}
-    - DB_POSTGRESDB_PASSWORD=${POSTGRES_PASSWORD}
-    - N8N_DIAGNOSTICS_ENABLED=false
-    - N8N_PERSONALIZATION_ENABLED=false
-    - N8N_ENCRYPTION_KEY
-    - N8N_USER_MANAGEMENT_JWT_SECRET
-    - OLLAMA_HOST=ollama:11434
+    # Database configuration - N8N will use PostgreSQL as backend
+    - DB_TYPE=postgresdb # Set database type to PostgreSQL
+    - DB_POSTGRESDB_HOST=postgres # Database host (service name)
+    - DB_POSTGRESDB_USER=${POSTGRES_USER} # Database user from .env file
+    - DB_POSTGRESDB_PASSWORD=${POSTGRES_PASSWORD} # Database password from .env file
+
+    # N8N Security and feature settings
+    - N8N_DIAGNOSTICS_ENABLED=false # Disable telemetry and diagnostics
+    - N8N_PERSONALIZATION_ENABLED=false # Disable personalization features
+    - N8N_ENCRYPTION_KEY # Required for encrypting credentials (from .env)
+    - N8N_USER_MANAGEMENT_JWT_SECRET # Required for user authentication (from .env)
+
+    # AI Integration - Connect N8N to Ollama for AI workflows
+    - OLLAMA_HOST=ollama:11434 # Ollama service host and port
   env_file:
-    - .env
+    - .env # Load additional environment variables
 
+# Ollama Base Configuration - Used by CPU and GPU variants
 x-ollama: &service-ollama
-  image: ollama/ollama:latest
-  container_name: ollama
-  networks: ["demo"]
-  restart: unless-stopped
+  image: ollama/ollama:latest # Local AI model server
+  container_name: ollama # Fixed container name for easy reference
+  networks: ["demo"] # Connect to our custom network
+  restart: unless-stopped # Auto-restart unless manually stopped
   ports:
-    - 11434:11434
+    - 11434:11434 # Expose Ollama API port (host:container)
   volumes:
-    - ollama_storage:/root/.ollama
+    - ollama_storage:/root/.ollama # Persist downloaded models and config
 
+# Ollama Model Initialization - Used to pre-download AI models
 x-init-ollama: &init-ollama
-  image: ollama/ollama:latest
-  networks: ["demo"]
-  container_name: ollama-pull-llama
+  image: ollama/ollama:latest # Same image as main Ollama service
+  networks: ["demo"] # Connect to our custom network
+  container_name: ollama-pull-llama # Temporary container for model download
   volumes:
-    - ollama_storage:/root/.ollama
-  entrypoint: /bin/sh
+    - ollama_storage:/root/.ollama # Share storage with main Ollama service
+  entrypoint: /bin/sh # Override default entrypoint
   environment:
-    - OLLAMA_HOST=ollama:11434
+    - OLLAMA_HOST=ollama:11434 # Connect to main Ollama service
   command:
     - "-c"
-    - "sleep 3; ollama pull mistral:latest;"
+    - "sleep 3; ollama pull mistral:latest;" # Wait for Ollama to start, then download model
 
+# =============================================================================
+# SERVICES - Main application containers
+# =============================================================================
 services:
+  # PostgreSQL Database - Backend storage for N8N
   postgres:
-    image: postgres:16-alpine
-    hostname: postgres
-    networks: ["demo"]
-    restart: unless-stopped
+    image: postgres:16-alpine # Lightweight PostgreSQL 16 image
+    hostname: postgres # Internal hostname for service discovery
+    networks: ["demo"] # Connect to our custom network
+    restart: unless-stopped # Auto-restart unless manually stopped
     ports:
-      - 5432:5432
+      - 5432:5432 # Expose PostgreSQL port (host:container)
     environment:
-      - POSTGRES_USER
-      - POSTGRES_PASSWORD
-      - POSTGRES_DB
+      - POSTGRES_USER # Database username (from .env file)
+      - POSTGRES_PASSWORD # Database password (from .env file)
+      - POSTGRES_DB # Database name (from .env file)
     volumes:
-      - postgres_storage:/var/lib/postgresql/data
+      - postgres_storage:/var/lib/postgresql/data # Persist database data
     healthcheck:
       test:
         [
           "CMD-SHELL",
           "pg_isready -h localhost -U ${POSTGRES_USER} -d ${POSTGRES_DB}",
         ]
-      interval: 5s
-      timeout: 5s
-      retries: 10
+      interval: 5s # Check every 5 seconds
+      timeout: 5s # Wait 5 seconds for response
+      retries: 10 # Retry 10 times before marking unhealthy
 
+  # N8N Data Import Service - One-time setup for demo data
   n8n-import:
-    <<: *service-n8n
-    hostname: n8n-import
-    container_name: n8n-import
-    entrypoint: /bin/sh
+    <<: *service-n8n # Inherit base N8N configuration
+    hostname: n8n-import # Internal hostname
+    container_name: n8n-import # Container name
+    entrypoint: /bin/sh # Override default entrypoint
     command:
       - "-c"
+      # Import demo credentials and workflows from local files
       - "n8n import:credentials --separate --input=/demo-data/credentials && n8n import:workflow --separate --input=/demo-data/workflows"
     volumes:
-      - ./n8n/demo-data:/demo-data
+      - ./n8n/demo-data:/demo-data # Mount demo data directory
     depends_on:
       postgres:
-        condition: service_healthy
+        condition: service_healthy # Wait for PostgreSQL to be ready
 
+  # N8N Main Service - The workflow automation platform
   n8n:
-    <<: *service-n8n
-    hostname: n8n
-    container_name: n8n
-    restart: unless-stopped
+    <<: *service-n8n # Inherit base N8N configuration
+    hostname: n8n # Internal hostname
+    container_name: n8n # Container name
+    restart: unless-stopped # Auto-restart unless manually stopped
     ports:
-      - 5678:5678
+      - 5678:5678 # Expose N8N web interface (host:container)
     volumes:
-      - n8n_storage:/home/node/.n8n
-      - ./n8n/demo-data:/demo-data
-      - ./shared:/data/shared
+      - n8n_storage:/home/node/.n8n # Persist N8N data and configuration
+      - ./n8n/demo-data:/demo-data # Access to demo data files
+      - ./shared:/data/shared # Shared data directory for workflows
     depends_on:
       postgres:
-        condition: service_healthy
+        condition: service_healthy # Wait for PostgreSQL to be ready
       n8n-import:
-        condition: service_completed_successfully
+        condition: service_completed_successfully # Wait for demo data import to complete
 
+  # =============================================================================
+  # OLLAMA AI SERVICES - Different configurations based on hardware
+  # =============================================================================
+  # Use profiles to select the appropriate configuration for your system
+  # Example: docker-compose --profile cpu up -d
+
+  # CPU-only Ollama Service - For systems without GPU or when GPU is not available
   ollama-cpu:
-    profiles: ["cpu"]
-    <<: *service-ollama
+    profiles: ["cpu"] # Only start with --profile cpu
+    <<: *service-ollama # Inherit base Ollama configuration
 
+  # NVIDIA GPU Ollama Service - For NVIDIA GPU acceleration
   ollama-gpu:
-    profiles: ["gpu-nvidia"]
-    <<: *service-ollama
+    profiles: ["gpu-nvidia"] # Only start with --profile gpu-nvidia
+    <<: *service-ollama # Inherit base Ollama configuration
     deploy:
       resources:
         reservations:
           devices:
-            - driver: nvidia
-              count: 1
-              capabilities: [gpu]
+            - driver: nvidia # Use NVIDIA GPU driver
+              count: 1 # Use 1 GPU
+              capabilities: [gpu] # Require GPU capability
 
+  # AMD GPU Ollama Service - For AMD GPU acceleration with ROCm
   ollama-gpu-amd:
-    profiles: ["gpu-amd"]
-    <<: *service-ollama
-    image: ollama/ollama:rocm
+    profiles: ["gpu-amd"] # Only start with --profile gpu-amd
+    <<: *service-ollama # Inherit base Ollama configuration
+    image: ollama/ollama:rocm # Use ROCm-enabled Ollama image
     devices:
-      - "/dev/kfd"
-      - "/dev/dri"
+      - "/dev/kfd" # AMD GPU device
+      - "/dev/dri" # Direct Rendering Infrastructure
 
+  # =============================================================================
+  # OLLAMA MODEL DOWNLOADERS - Pre-download AI models for each configuration
+  # =============================================================================
+
+  # CPU Model Downloader - Downloads models for CPU configuration
   ollama-pull-llama-cpu:
-    profiles: ["cpu"]
-    <<: *init-ollama
+    profiles: ["cpu"] # Only start with --profile cpu
+    <<: *init-ollama # Inherit model download configuration
     depends_on:
-      - ollama-cpu
+      - ollama-cpu # Wait for CPU Ollama service to start
 
+  # NVIDIA GPU Model Downloader - Downloads models for NVIDIA GPU configuration
   ollama-pull-llama-gpu:
-    profiles: ["gpu-nvidia"]
-    <<: *init-ollama
+    profiles: ["gpu-nvidia"] # Only start with --profile gpu-nvidia
+    <<: *init-ollama # Inherit model download configuration
     depends_on:
-      - ollama-gpu
+      - ollama-gpu # Wait for NVIDIA GPU Ollama service to start
 
+  # AMD GPU Model Downloader - Downloads models for AMD GPU configuration
   ollama-pull-llama-gpu-amd:
-    profiles: [gpu-amd]
-    <<: *init-ollama
-    image: ollama/ollama:rocm
+    profiles: [gpu-amd] # Only start with --profile gpu-amd
+    <<: *init-ollama # Inherit model download configuration
+    image: ollama/ollama:rocm # Use ROCm-enabled Ollama image
     depends_on:
-      - ollama-gpu-amd
+      - ollama-gpu-amd # Wait for AMD GPU Ollama service to start
